@@ -230,7 +230,7 @@ private:
 	rtabmap::Transform currentMetricGoal_;
 	bool latestNodeWasReached_;
 	rtabmap::ParametersMap parameters_;
-
+    int markerCounter;
 	std::string frameId_;
 	std::string mapFrameId_;
 	std::string odomFrameId_;
@@ -251,7 +251,7 @@ private:
 	ros::Publisher mapDataPub_;
 	ros::Publisher mapGraphPub_;
 	ros::Publisher labelsPub_;
-
+    ros::Publisher odomPoseMarkerPub_;
 	//Planning stuff
 	ros::Subscriber goalSub_;
 	ros::Subscriber goalNodeSub_;

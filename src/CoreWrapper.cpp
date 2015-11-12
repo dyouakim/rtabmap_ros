@@ -191,7 +191,7 @@ CoreWrapper::CoreWrapper(bool deleteDbOnStart) :
 	mapDataPub_ = nh.advertise<rtabmap_ros::MapData>("mapData", 1);
 	mapGraphPub_ = nh.advertise<rtabmap_ros::MapGraph>("mapGraph", 1);
 	labelsPub_ = nh.advertise<visualization_msgs::MarkerArray>("labels", 1);
-
+    odomPoseMarkerPub_ =  nh.advertise<visualization_msgs::Marker>("robot_pose", 1);
 	// planning topics
 	goalSub_ = nh.subscribe("goal", 1, &CoreWrapper::goalCallback, this);
 	goalNodeSub_ = nh.subscribe("goal_node", 1, &CoreWrapper::goalNodeCallback, this);
@@ -624,6 +624,38 @@ bool CoreWrapper::commonOdomUpdate(const nav_msgs::OdometryConstPtr & odomMsg)
 
 		lastPose_ = odom;
 		lastPoseStamp_ = odomMsg->header.stamp;
+
+		/*Dina Youakim publish robot pose*/
+		Transform robot_pose = mapToOdom_*odom;
+		visualization_msgs::Marker robotPose_marker;
+		robotPose_marker.header.frame_id=frameId_;
+		robotPose_marker.header.stamp = ros::Time();
+		robotPose_marker.ns = "robot_pose";
+		robotPose_marker.id = markerCounter;
+		markerCounter ++;
+		robotPose_marker.type = visualization_msgs::Marker::ARROW;
+		robotPose_marker.action = visualization_msgs::Marker::ADD;
+
+		float x,y,z,roll, pitch, yaw;
+		robot_pose.getTranslationAndEulerAngles(x, y, z, roll, pitch, yaw);
+		robotPose_marker.pose.position.x = x;
+		robotPose_marker.pose.position.y = y;
+		robotPose_marker.pose.position.z = z;
+		geometry_msgs::Quaternion q = tf::createQuaternionMsgFromRollPitchYaw(roll,pitch,yaw);
+		robotPose_marker.pose.orientation.x = q.x;
+		robotPose_marker.pose.orientation.y = q.y;
+		robotPose_marker.pose.orientation.z = q.z;
+		robotPose_marker.pose.orientation.w = q.w;
+		robotPose_marker.scale.x = 0.2;
+		robotPose_marker.scale.y = 0.05;
+		robotPose_marker.scale.z = 0.05;
+		robotPose_marker.color.a = 1.0; 
+		robotPose_marker.color.r = 0.5;
+		robotPose_marker.color.g = 0.5;
+		robotPose_marker.color.b = 0.0;
+
+		odomPoseMarkerPub_.publish(robotPose_marker);
+
 		double transVariance = uMax3(odomMsg->pose.covariance[0], odomMsg->pose.covariance[7], odomMsg->pose.covariance[14]);
 		double rotVariance = uMax3(odomMsg->pose.covariance[21], odomMsg->pose.covariance[28], odomMsg->pose.covariance[35]);
 		if(uIsFinite(rotVariance) && rotVariance > rotVariance_)
@@ -912,20 +944,27 @@ void CoreWrapper::commonDepthCallback(
 	}
 
 	ros::Time stamp = scanMsg.get() != 0?scanMsg->header.stamp:depthMsgs[0]->header.stamp;
-
-	process(stamp,
-			SensorData(scan,
+    /* Dina Youakim: Add landmark pose as user data: 2x3 matrix (x y z, R P Y)*/
+    
+    cv::Mat landmarkPose = cv::Mat::zeros(2,3, CV_32F);
+    landmarkPose.at<double>(0,0)=0.8;
+    landmarkPose.at<double>(0,1)=0.2;
+    landmarkPose.at<double>(0,2)=0.1; 
+    SensorData sensor = SensorData(scan,
 					scanMsg.get() != 0?(int)scanMsg->ranges.size():genMaxScanPts,
 					scanMsg.get() != 0?scanMsg->range_max:(genScan_?genScanMaxDepth_:0.0f),
 					rgb,
 					depth,
 					cameraModels,
 					imageMsgs[0]->header.seq,
-					rtabmap_ros::timestampFromROS(stamp)),
+					rtabmap_ros::timestampFromROS(stamp),landmarkPose);
+	process(stamp,
+			sensor,
 			lastPose_,
 			odomFrameId,
 			rotVariance_>0?rotVariance_:1.0,
 			transVariance_>0?transVariance_:1.0);
+	
 	rotVariance_ = 0;
 	transVariance_ = 0;
 }

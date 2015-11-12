@@ -39,9 +39,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ros/publisher.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <boost/thread.hpp>
-
+#include "rtabmap/core/Compression.h"
+#include <fstream>
 using namespace rtabmap;
 
+int landmarkCounter;
 class MapOptimizer
 {
 
@@ -92,7 +94,7 @@ public:
 		pnh.param("publish_tf", publishTf, publishTf);
 		pnh.param("tf_delay", tfDelay, tfDelay);
 
-		mapDataTopic_ = nh.subscribe("mapData", 1, &MapOptimizer::mapDataReceivedCallback, this);
+		mapDataTopic_ = nh.subscribe("/rtabmap/mapData", 1, &MapOptimizer::mapDataReceivedCallback, this);
 		mapDataPub_ = nh.advertise<rtabmap_ros::MapData>(nh.resolveName("mapData")+"_optimized", 1);
 		mapGraphPub_ = nh.advertise<rtabmap_ros::MapGraph>(nh.resolveName("mapData")+"Graph_optimized", 1);
 
@@ -104,6 +106,8 @@ public:
 			ROS_INFO("map_optimizer: tf_delay = %f", tfDelay);
 			transformThread_ = new boost::thread(boost::bind(&MapOptimizer::publishLoop, this, tfDelay));
 		}
+		landmarks.open("/home/dina/landmarks.txt");
+		landmarks<<"file initialized"<<std::endl;
 	}
 
 	~MapOptimizer()
@@ -135,20 +139,71 @@ public:
 		}
 	}
 
+    /* Dina Youakim*/
+    void createLandmarks(rtabmap_ros::MapDataConstPtr & msg, std::map<int, rtabmap::Transform> posesOut, std::multimap<int, rtabmap::Link> linksOut)
+	{
+		for(unsigned int i=0; i<msg->nodes.size(); ++i)
+		{
+			rtabmap_ros::NodeData currentNode = msg->nodes[i];
+			
+			if(!currentNode.userData.empty())
+			{
+				landmarks<<"user data not empty"<<std::endl;
+				landmarkCounter--;
+				cv::Mat landmark = rtabmap::uncompressData(currentNode.userData);
+
+				rtabmap::Transform landmarkObservation(landmark.at<double>(0,0),landmark.at<double>(0,1),landmark.at<double>(0,2),
+					landmark.at<double>(1,0),landmark.at<double>(1,1),landmark.at<double>(1,2));
+
+				double roll, pitch, yaw;
+				tf::Quaternion quat;
+    			tf::quaternionMsgToTF(currentNode.pose.orientation, quat);
+				tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+				rtabmap::Transform robotPose(currentNode.pose.position.x,currentNode.pose.position.y,currentNode.pose.position.z,roll,pitch,yaw);
+				rtabmap::Transform landmarkPose = robotPose*landmarkObservation;
+				posesOut.insert(std::make_pair(landmarkCounter,landmarkPose));
+
+				landmarks<<"landmark pose "<<landmarkObservation<<std::endl;
+
+				/* Create landmark link*/
+				rtabmap::Link link;
+				link.setFrom(currentNode.id);
+				link.setTo (landmarkCounter);
+				link.setType (rtabmap::Link::kVirtualClosure);
+				link.setTransform(robotPose.inverse()*landmarkPose);
+				//link.setInfMatrix() ???;
+				//link.setVariance() ???;
+				linksOut.insert(std::make_pair(link.from(),link));
+				
+			}
+			else
+			{
+				landmarks<<"user data empty"<<std::endl;
+			}
+		}
+	}
+
+
 	void mapDataReceivedCallback(const rtabmap_ros::MapDataConstPtr & msg)
 	{
 		// save new poses and constraints
 		// Assuming that nodes/constraints are all linked together
+		landmarks<<"new map data received"<<std::endl;
 		UASSERT(msg->graph.posesId.size() == msg->graph.poses.size());
 
 		bool dataChanged = false;
 
+		//Dina Youakim
+		rtabmap_ros::MapDataConstPtr modifiedMapData = msg; 
+		//createLandmarks(modifiedMapData);
+		
+		landmarks<<"poses and constraints"<<std::endl;
 		std::multimap<int, Link> newConstraints;
-		for(unsigned int i=0; i<msg->graph.links.size(); ++i)
+		for(unsigned int i=0; i<modifiedMapData->graph.links.size(); ++i)
 		{
-			Link link = rtabmap_ros::linkFromROS(msg->graph.links[i]);
+			Link link = rtabmap_ros::linkFromROS(modifiedMapData->graph.links[i]);
 			newConstraints.insert(std::make_pair(link.from(), link));
-
+			landmarks<<link.from()<<","<<link.to()<<std::endl;
 			bool edgeAlreadyAdded = false;
 			for(std::multimap<int, Link>::iterator iter = cachedConstraints_.lower_bound(link.from());
 					iter != cachedConstraints_.end() && iter->first == link.from();
@@ -173,11 +228,11 @@ public:
 
 		std::map<int, Signature> newNodeInfos;
 		// add new odometry poses
-		for(unsigned int i=0; i<msg->nodes.size(); ++i)
+		for(unsigned int i=0; i<modifiedMapData->nodes.size(); ++i)
 		{
-			int id = msg->nodes[i].id;
-			Transform pose = rtabmap_ros::transformFromPoseMsg(msg->nodes[i].pose);
-			Signature s = rtabmap_ros::nodeInfoFromROS(msg->nodes[i]);
+			int id = modifiedMapData->nodes[i].id;
+			Transform pose = rtabmap_ros::transformFromPoseMsg(modifiedMapData->nodes[i].pose);
+			Signature s = rtabmap_ros::nodeInfoFromROS(modifiedMapData->nodes[i]);
 			newNodeInfos.insert(std::make_pair(id, s));
 
 			std::pair<std::map<int, Signature>::iterator, bool> p = cachedNodeInfos_.insert(std::make_pair(id, s));
@@ -197,6 +252,7 @@ public:
 		//match poses in the graph
 		std::multimap<int, Link> constraints;
 		std::map<int, Signature> nodeInfos;
+		
 		if(globalOptimization_)
 		{
 			constraints = cachedConstraints_;
@@ -205,16 +261,16 @@ public:
 		else
 		{
 			constraints = newConstraints;
-			for(unsigned int i=0; i<msg->graph.posesId.size(); ++i)
+			for(unsigned int i=0; i<modifiedMapData->graph.posesId.size(); ++i)
 			{
-				std::map<int, Signature>::iterator iter = cachedNodeInfos_.find(msg->graph.posesId[i]);
+				std::map<int, Signature>::iterator iter = cachedNodeInfos_.find(modifiedMapData->graph.posesId[i]);
 				if(iter != cachedNodeInfos_.end())
 				{
 					nodeInfos.insert(*iter);
 				}
 				else
 				{
-					ROS_ERROR("Odometry pose of node %d not found in cache!", msg->graph.posesId[i]);
+					ROS_ERROR("Odometry pose of node %d not found in cache!", modifiedMapData->graph.posesId[i]);
 					return;
 				}
 			}
@@ -224,11 +280,15 @@ public:
 		for(std::map<int, Signature>::iterator iter=nodeInfos.begin(); iter!=nodeInfos.end(); ++iter)
 		{
 			poses.insert(std::make_pair(iter->first, iter->second.getPose()));
+			landmarks<<iter->second.getPose()<<std::endl;
 		}
-
+        
+		
+		//landmarks<<constraints<<std::endl;
 		// Optimize only if there is a subscriber
 		if(mapDataPub_.getNumSubscribers() || mapGraphPub_.getNumSubscribers())
 		{
+			ROS_INFO_STREAM("Optimization enableddd!!!!!");
 			UTimer timer;
 			std::map<int, Transform> optimizedPoses;
 			Transform mapCorrection = Transform::getIdentity();
@@ -243,6 +303,8 @@ public:
 						constraints,
 						posesOut,
 						linksOut);
+				//Dina Youakim create landmarks here add to poses and links
+				createLandmarks(modifiedMapData, posesOut,linksOut);
 				optimizedPoses = optimizer_->optimize(fromId, posesOut, linksOut);
 				mapToOdomMutex_.lock();
 				mapCorrection = optimizedPoses.at(posesOut.rbegin()->first) * posesOut.rbegin()->second.inverse();
@@ -269,21 +331,21 @@ public:
 
 			if(mapGraphPub_.getNumSubscribers())
 			{
-				outputGraphMsg.header = msg->header;
+				outputGraphMsg.header = modifiedMapData->header;
 				mapGraphPub_.publish(outputGraphMsg);
 			}
 
 			if(mapDataPub_.getNumSubscribers())
 			{
-				outputDataMsg.header = msg->header;
+				outputDataMsg.header = modifiedMapData->header;
 				outputDataMsg.graph = outputGraphMsg;
-				outputDataMsg.nodes = msg->nodes;
-				if(posesOut.size() > msg->nodes.size())
+				outputDataMsg.nodes = modifiedMapData->nodes;
+				if(posesOut.size() > modifiedMapData->nodes.size())
 				{
 					std::set<int> addedNodes;
-					for(unsigned int i=0; i<msg->nodes.size(); ++i)
+					for(unsigned int i=0; i<modifiedMapData->nodes.size(); ++i)
 					{
-						addedNodes.insert(msg->nodes[i].id);
+						addedNodes.insert(modifiedMapData->nodes[i].id);
 					}
 					std::list<int> toAdd;
 					for(std::map<int, Transform>::iterator iter=posesOut.begin(); iter!=posesOut.end(); ++iter)
@@ -332,12 +394,14 @@ private:
 
 	tf2_ros::TransformBroadcaster tfBroadcaster_;
 	boost::thread* transformThread_;
+	std::ofstream landmarks;
 };
 
 
 int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "map_optimizer");
+	landmarkCounter=0;
 	MapOptimizer optimizer;
 	ros::spin();
 	return 0;
