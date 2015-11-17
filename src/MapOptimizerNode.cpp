@@ -169,7 +169,7 @@ public:
 				rtabmap::Link link;
 				link.setFrom(currentNode.id);
 				link.setTo (landmarkCounter);
-				link.setType (rtabmap::Link::kVirtualClosure);
+				link.setType (rtabmap::Link::kLandmark);
 				link.setTransform(robotPose.inverse()*landmarkPose);
 				//link.setInfMatrix() ???;
 				//link.setVariance() ???;
