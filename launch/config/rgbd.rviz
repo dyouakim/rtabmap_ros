@@ -8,6 +8,7 @@ Panels:
         - /TF1/Frames1
         - /Info1
         - /MarkerArray1
+        - /Marker3
       Splitter Ratio: 0.411058
     Tree Height: 422
   - Class: rviz/Selection
@@ -105,13 +106,7 @@ Visualization Manager:
       Tree:
         map:
           odom:
-            camera_link:
-              camera_depth_frame:
-                camera_depth_optical_frame:
-                  {}
-              camera_rgb_frame:
-                camera_rgb_optical_frame:
-                  {}
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz/Image
@@ -165,9 +160,33 @@ Visualization Manager:
       Topic: /rtabmap/info
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /occupied_cells_vis_array
       Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /filtered_odom_marker
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /rtabmap/robot_pose
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: visualization_marker
+      Name: Marker
       Namespaces:
         {}
       Queue Size: 100
@@ -227,5 +246,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1273
-  X: 66
-  Y: 28
+  X: 55
+  Y: 14
