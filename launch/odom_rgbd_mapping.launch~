@@ -78,7 +78,7 @@
       <param name="LccBow/EstimationType"     type="string" value="$(arg estimation)"/> 
       <param name="LccBow/VarianceFromInliersCount" type="string" value="$(arg variance_inliers)"/>
       <param name="Mem/SaveDepth16Format"     type="string" value="$(arg convert_depth_to_mm)"/>
-      <param name="RGBD/OptimizeIterations" type="string" value="20"/>
+      <param name="RGBD/OptimizeIterations" type="string" value="3"/>
 
       
       <!-- when 2D scan is set -->

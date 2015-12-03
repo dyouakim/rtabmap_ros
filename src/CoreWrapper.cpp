@@ -119,7 +119,9 @@ CoreWrapper::CoreWrapper(bool deleteDbOnStart) :
 	std::string tfPrefix = "";
 	bool stereoApproxSync = false;
 
-	// ROS related parameters (private)
+	dataFile.open("../localization_data.txt");
+
+		// ROS related parameters (private)
 	pnh.param("subscribe_depth",     subscribeDepth, subscribeDepth);
 	pnh.param("subscribe_laserScan", subscribeLaserScan, subscribeLaserScan);
 	pnh.param("subscribe_stereo",    subscribeStereo, subscribeStereo);
@@ -191,7 +193,8 @@ CoreWrapper::CoreWrapper(bool deleteDbOnStart) :
 	mapDataPub_ = nh.advertise<rtabmap_ros::MapData>("mapData", 1);
 	mapGraphPub_ = nh.advertise<rtabmap_ros::MapGraph>("mapGraph", 1);
 	labelsPub_ = nh.advertise<visualization_msgs::MarkerArray>("labels", 1);
-    odomPoseMarkerPub_ =  nh.advertise<visualization_msgs::Marker>("robot_pose", 1);
+    robotPoseMarkerPub_ =  nh.advertise<visualization_msgs::Marker>("robot_pose_marker", 1);
+    robotPosePub_ = nh.advertise<nav_msgs::Odometry>("localisation_pose", 1);
 	// planning topics
 	goalSub_ = nh.subscribe("goal", 1, &CoreWrapper::goalCallback, this);
 	goalNodeSub_ = nh.subscribe("goal_node", 1, &CoreWrapper::goalNodeCallback, this);
@@ -415,7 +418,11 @@ CoreWrapper::CoreWrapper(bool deleteDbOnStart) :
 	octomapFullSrv_ = nh.advertiseService("octomap_full", &CoreWrapper::octomapFullCallback, this);
 #endif
 
+	//Dina Youakim: add getLanmarkPose service client
+    getLandmarkPoseClnt_ = nh.serviceClient<landmarks_detection::GetLandmarkPose>("/getLandmarkPose");
 	setupCallbacks(subscribeDepth, subscribeLaserScan, subscribeStereo, queueSize, stereoApproxSync, depthCameras);
+
+	
 
 	int optimizeIterations = 0;
 	Parameters::parse(parameters_, Parameters::kRGBDOptimizeIterations(), optimizeIterations);
@@ -428,6 +435,7 @@ CoreWrapper::CoreWrapper(bool deleteDbOnStart) :
 		UWARN("Graph optimization is disabled (%s=0), the tf between frame \"%s\" and odometry frame will not be published. You can safely ignore this warning if you are using map_optimizer node.",
 				Parameters::kRGBDOptimizeIterations().c_str(), mapFrameId_.c_str());
 	}
+
 }
 
 CoreWrapper::~CoreWrapper()
@@ -609,6 +617,7 @@ void CoreWrapper::defaultCallback(const sensor_msgs::ImageConstPtr & imageMsg)
 	}
 }
 
+
 bool CoreWrapper::commonOdomUpdate(const nav_msgs::OdometryConstPtr & odomMsg)
 {
 	if(!paused_)
@@ -625,12 +634,13 @@ bool CoreWrapper::commonOdomUpdate(const nav_msgs::OdometryConstPtr & odomMsg)
 		lastPose_ = odom;
 		lastPoseStamp_ = odomMsg->header.stamp;
 
-		/*Dina Youakim publish robot pose*/
+		/*Dina Youakim publish robot pose and its marker for visualization*/
 		Transform robot_pose = mapToOdom_*odom;
+
 		visualization_msgs::Marker robotPose_marker;
-		robotPose_marker.header.frame_id=frameId_;
+		robotPose_marker.header.frame_id=mapFrameId_;
 		robotPose_marker.header.stamp = ros::Time();
-		robotPose_marker.ns = "robot_pose";
+		robotPose_marker.ns = "robot_pose_marker";
 		robotPose_marker.id = markerCounter;
 		markerCounter ++;
 		robotPose_marker.type = visualization_msgs::Marker::ARROW;
@@ -654,8 +664,20 @@ bool CoreWrapper::commonOdomUpdate(const nav_msgs::OdometryConstPtr & odomMsg)
 		robotPose_marker.color.g = 0.5;
 		robotPose_marker.color.b = 0.0;
 
-		odomPoseMarkerPub_.publish(robotPose_marker);
-
+		robotPoseMarkerPub_.publish(robotPose_marker);
+		nav_msgs::Odometry robotPose_odom, robotPose_map;
+		
+		rtabmap_ros::transformToPoseMsg(odom,robotPose_odom.pose.pose);
+		rtabmap_ros::transformToPoseMsg(robot_pose,robotPose_map.pose.pose);
+		robotPose_odom.header.stamp = ros::Time::now();
+		robotPose_odom.header.frame_id = odomFrameId_; 
+		robotPose_odom.child_frame_id = frameId_;
+		robotPose_map.header.stamp = ros::Time::now();
+		robotPose_map.header.frame_id = mapFrameId_;
+		robotPosePub_.publish(robotPose_odom);
+		sleep(1.0);
+		dataFile<<robotPose_odom.pose.pose.position.x<<","<<robotPose_odom.pose.pose.position.y<<","<<tf::getYaw(robotPose_odom.pose.pose.orientation)<<","<<robotPose_odom.header.stamp<<std::endl;
+		//dataFile<<robotPose_map.pose.pose.position.x<<","<<robotPose_map.pose.pose.position.y<<","<<tf::getYaw(robotPose_map.pose.pose.orientation)<<std::endl;
 		double transVariance = uMax3(odomMsg->pose.covariance[0], odomMsg->pose.covariance[7], odomMsg->pose.covariance[14]);
 		double rotVariance = uMax3(odomMsg->pose.covariance[21], odomMsg->pose.covariance[28], odomMsg->pose.covariance[35]);
 		if(uIsFinite(rotVariance) && rotVariance > rotVariance_)
@@ -944,12 +966,29 @@ void CoreWrapper::commonDepthCallback(
 	}
 
 	ros::Time stamp = scanMsg.get() != 0?scanMsg->header.stamp:depthMsgs[0]->header.stamp;
-    /* Dina Youakim: Add landmark pose as user data: 2x3 matrix (x y z, R P Y)*/
     
-    cv::Mat landmarkPose = cv::Mat::zeros(2,3, CV_32F);
-    landmarkPose.at<double>(0,0)=0.8;
-    landmarkPose.at<double>(0,1)=0.2;
-    landmarkPose.at<double>(0,2)=0.1; 
+    //Dina Youakim: retreive the last landmark observation
+    cv::Mat landmarkPoseMat = cv::Mat::zeros(2,3, CV_32F);
+    if(getLandmarkPoseClnt_.call(getlandmarkPoseSrv_))
+    {
+    	//this landmark pose is in camera_landmark frame, it needs to be converted to odom frame in order to be processed in the graph optimizer correctly--> not sure maybe i need map frame
+    	geometry_msgs::PoseStamped landmarkPose = getlandmarkPoseSrv_.response.landmarkPose;
+    	//get transform from camera_landmark to odom
+    	Transform cameraToLandmarkT = getTransform(odomFrameId, landmarkPose.header.frame_id, landmarkPose.header.stamp);
+    	Transform landmarkPoseInRobotFrame = cameraToLandmarkT.inverse()*rtabmap_ros::transformFromPoseMsg(landmarkPose.pose);
+    	float x,y,z,roll, pitch, yaw;
+		landmarkPoseInRobotFrame.getTranslationAndEulerAngles(x, y, z, roll, pitch, yaw);
+    	landmarkPoseMat.at<double>(0,0)=landmarkPose.pose.position.x;
+	    landmarkPoseMat.at<double>(0,1)=landmarkPose.pose.position.y;
+	    landmarkPoseMat.at<double>(0,2)=landmarkPose.pose.position.z;
+
+	    landmarkPoseMat.at<double>(1,0)=roll;
+	    landmarkPoseMat.at<double>(1,1)=pitch;
+	    landmarkPoseMat.at<double>(1,2)=yaw;
+
+    }
+
+
     SensorData sensor = SensorData(scan,
 					scanMsg.get() != 0?(int)scanMsg->ranges.size():genMaxScanPts,
 					scanMsg.get() != 0?scanMsg->range_max:(genScan_?genScanMaxDepth_:0.0f),
@@ -957,7 +996,7 @@ void CoreWrapper::commonDepthCallback(
 					depth,
 					cameraModels,
 					imageMsgs[0]->header.seq,
-					rtabmap_ros::timestampFromROS(stamp),landmarkPose);
+					rtabmap_ros::timestampFromROS(stamp),landmarkPoseMat);
 	process(stamp,
 			sensor,
 			lastPose_,
