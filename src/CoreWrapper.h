@@ -75,6 +75,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <move_base_msgs/MoveBaseActionResult.h>
 #include <move_base_msgs/MoveBaseActionFeedback.h>
 #include <actionlib_msgs/GoalStatusArray.h>
+
+#include "landmarks_detection/GetLandmarkPose.h"
+#include <fstream>
+
+
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
 class CoreWrapper
@@ -255,7 +260,8 @@ private:
 	ros::Publisher mapDataPub_;
 	ros::Publisher mapGraphPub_;
 	ros::Publisher labelsPub_;
-    ros::Publisher odomPoseMarkerPub_;
+    ros::Publisher robotPoseMarkerPub_;
+    ros::Publisher robotPosePub_;
 	//Planning stuff
 	ros::Subscriber goalSub_;
 	ros::Subscriber goalNodeSub_;
@@ -263,6 +269,11 @@ private:
 	ros::Publisher goalReachedPub_;
 	ros::Publisher globalPathPub_;
 	ros::Publisher localPathPub_;
+
+	ros::ServiceClient getLandmarkPoseClnt_;
+	landmarks_detection::GetLandmarkPose getlandmarkPoseSrv_;
+
+	std::ofstream dataFile;
 
 	// for loop closure detection only
 	image_transport::Subscriber defaultSub_;
@@ -397,10 +408,12 @@ private:
 
 	MoveBaseClient mbClient_;
 
+
 	boost::thread* transformThread_;
 
 	float rate_;
 	ros::Time time_;
+
 };
 
 #endif /* COREWRAPPER_H_ */
