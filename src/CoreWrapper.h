@@ -188,8 +188,8 @@ private:
 			const rtabmap::SensorData & data,
 			const rtabmap::Transform & odom = rtabmap::Transform(),
 			const std::string & odomFrameId = "",
-			float odomRotationalVariance = 1.0,
-			float odomTransitionalVariance = 1.0);
+			double odomRotationalVariance = 1.0,
+			double odomTransitionalVariance = 1.0);
 
 	bool updateRtabmapCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
 	bool resetRtabmapCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
