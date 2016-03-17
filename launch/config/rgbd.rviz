@@ -5,11 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /TF1
         - /TF1/Frames1
         - /Info1
-        - /MarkerArray1
-      Splitter Ratio: 0.570093
+      Splitter Ratio: 0.411058
     Tree Height: 422
   - Class: rviz/Selection
     Name: Selection
@@ -84,20 +82,16 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        base_link:
-          Value: true
         camera_depth_frame:
-          Value: false
+          Value: true
         camera_depth_optical_frame:
-          Value: false
-        camera_landmark:
-          Value: false
+          Value: true
         camera_link:
-          Value: false
+          Value: true
         camera_rgb_frame:
-          Value: false
+          Value: true
         camera_rgb_optical_frame:
-          Value: false
+          Value: true
         map:
           Value: true
         odom:
@@ -110,16 +104,7 @@ Visualization Manager:
       Tree:
         map:
           odom:
-            base_link:
-              camera_landmark:
-                {}
-              camera_link:
-                camera_depth_frame:
-                  camera_depth_optical_frame:
-                    {}
-                camera_rgb_frame:
-                  camera_rgb_optical_frame:
-                    {}
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz/Image
@@ -149,7 +134,8 @@ Visualization Manager:
       Color Transformer: RGB8
       Download graph: false
       Download map: false
-      Enabled: true
+      Enabled: false
+      Filter ceiling (m): 0
       Filter floor (m): 0
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -166,44 +152,12 @@ Visualization Manager:
       Topic: /rtabmap/mapData
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rtabmap_ros/Info
-      Enabled: false
+      Enabled: true
       Name: Info
       Topic: /rtabmap/info
-      Value: false
-    - Class: rviz/MarkerArray
-      Enabled: false
-      Marker Topic: /occupied_cells_vis_array
-      Name: MarkerArray
-      Namespaces:
-        {}
-      Queue Size: 100
-      Value: false
-    - Class: rviz/Marker
-      Enabled: false
-      Marker Topic: /filtered_odom_marker
-      Name: Marker
-      Namespaces:
-        {}
-      Queue Size: 100
-      Value: false
-    - Class: rviz/Marker
-      Enabled: true
-      Marker Topic: /rtabmap/robot_pose_marker
-      Name: Marker
-      Namespaces:
-        robot_pose_marker: true
-      Queue Size: 100
       Value: true
-    - Class: rviz/Marker
-      Enabled: false
-      Marker Topic: encoder_odom_marker
-      Name: Marker
-      Namespaces:
-        {}
-      Queue Size: 100
-      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -221,6 +175,7 @@ Visualization Manager:
       Download graph: false
       Download map: false
       Enabled: false
+      Filter ceiling (m): 0
       Filter floor (m): 0
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -233,11 +188,64 @@ Visualization Manager:
       Position Transformer: XYZ
       Size (Pixels): 3
       Size (m): 0.01
-      Style: Flat Squares
+      Style: Points
       Topic: /mapData_optimized
       Use Fixed Frame: true
       Use rainbow: true
       Value: false
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /LandmarkOptimized
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Points
+      Topic: /map_assembler/cloud_map
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: false
+      Name: Map
+      Topic: /map_assembler/grid_map
+      Value: false
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /RobotOptimized
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -258,7 +266,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 7.10181
+      Distance: 8.94596
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
@@ -270,10 +278,10 @@ Visualization Manager:
         Z: -1.13136
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.789797
+      Pitch: 0.774799
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 1.60235
+      Yaw: 3.70919
     Saved: ~
 Window Geometry:
   Displays:
@@ -293,5 +301,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1273
-  X: 55
-  Y: 14
+  X: 456
+  Y: 61

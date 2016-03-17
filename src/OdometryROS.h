@@ -40,6 +40,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/SensorData.h>
 #include <rtabmap/core/Parameters.h>
 
+#include <fstream>
+
 namespace rtabmap {
 class Odometry;
 }
@@ -102,6 +104,8 @@ private:
 	tf::TransformListener tfListener_;
 
 	bool paused_;
+	ros::Time previousStamp_;
+	std::ofstream dataFile;
 };
 
 }

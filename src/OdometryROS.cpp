@@ -71,6 +71,8 @@ OdometryROS::OdometryROS(int argc, char * argv[], bool stereo) :
 
 	ros::NodeHandle pnh("~");
 
+	dataFile.open("../visual_odom.txt");
+
 	Transform initialPose = Transform::getIdentity();
 	std::string initialPoseStr;
 	std::string tfPrefix;
@@ -363,6 +365,7 @@ Transform OdometryROS::getTransform(const std::string & fromFrameId, const std::
 
 void OdometryROS::processData(const SensorData & data, const ros::Time & stamp)
 {
+
 	if(odometry_->getPose().isNull() &&
 	   !groundTruthFrameId_.empty())
 	{
@@ -400,8 +403,8 @@ void OdometryROS::processData(const SensorData & data, const ros::Time & stamp)
 			tfBroadcaster_.sendTransform(poseMsg);
 		}
 
-		if(odomPub_.getNumSubscribers())
-		{
+		//if(odomPub_.getNumSubscribers())
+		//{
 			//next, we'll publish the odometry message over ROS
 			nav_msgs::Odometry odom;
 			odom.header.stamp = stamp; // use corresponding time stamp to image
@@ -422,9 +425,37 @@ void OdometryROS::processData(const SensorData & data, const ros::Time & stamp)
 			odom.pose.covariance.at(28) = info.variance; // pp
 			odom.pose.covariance.at(35) = info.variance; // yawyaw
 
+			//set velocity
+			if(previousStamp_.isValid())
+			{
+				float dt = 1.0f/(stamp - previousStamp_).toSec();
+				float x,y,z,roll,pitch,yaw;
+				odometry_->previousTransform().getTranslationAndEulerAngles(x,y,z,roll,pitch,yaw);
+				odom.twist.twist.linear.x = x*dt;
+				odom.twist.twist.linear.y = y*dt;
+				odom.twist.twist.linear.z = z*dt;
+				odom.twist.twist.angular.x = roll*dt;
+				odom.twist.twist.angular.y = pitch*dt;
+				odom.twist.twist.angular.z = yaw*dt;
+			}
+			previousStamp_ = stamp;
+			//dataFile<<odom.pose.pose.position.x<<","<<odom.pose.pose.position.y<<","<<tf::getYaw(odom.pose.pose.orientation)<<","<<odom.header.stamp<<std::endl;
+			/*geometry_msgs::PoseStamped in, out;
+    		in.header.stamp = odom.header.stamp;
+    		in.pose = odom.pose.pose;
+    		in.header.frame_id = "camera_link";
+    		out.header.frame_id = frameId_;
+    		odom.child_frame_id = frameId_;
+
+			 if(tfListener_.waitForTransform("camera_link", frameId_,odom.header.stamp, ros::Duration(waitForTransformDuration_))){
+        		tfListener_.transformPose(frameId_,in,out); 
+        		odom.pose.pose = out.pose;
+        	}*/
 			//publish the message
+			dataFile<<odom.pose.pose.position.x<<","<<odom.pose.pose.position.y<<","<<tf::getYaw(odom.pose.pose.orientation)<<","<<odom.header.stamp<<std::endl;
+			ROS_INFO_STREAM("just before publishing odom");
 			odomPub_.publish(odom);
-		}
+		//}
 
 		if(odomLocalMap_.getNumSubscribers() && dynamic_cast<OdometryBOW*>(odometry_))
 		{
@@ -504,7 +535,7 @@ void OdometryROS::processData(const SensorData & data, const ros::Time & stamp)
 		odomInfoPub_.publish(infoMsg);
 	}
 
-	ROS_INFO("Odom: quality=%d, std dev=%fm, update time=%fs", info.inliers, pose.isNull()?0.0f:std::sqrt(info.variance), (ros::WallTime::now()-time).toSec());
+//	ROS_INFO("Odom: quality=%d, std dev=%fm, update time=%fs", info.inliers, pose.isNull()?0.0f:std::sqrt(info.variance), (ros::WallTime::now()-time).toSec());
 }
 
 bool OdometryROS::isOdometryBOW() const
@@ -516,6 +547,7 @@ bool OdometryROS::reset(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
 {
 	ROS_INFO("visual_odometry: reset odom!");
 	odometry_->reset();
+	previousStamp_ = ros::Time();
 	return true;
 }
 
@@ -524,6 +556,7 @@ bool OdometryROS::resetToPose(rtabmap_ros::ResetPose::Request& req, rtabmap_ros:
 	Transform pose(req.x, req.y, req.z, req.roll, req.pitch, req.yaw);
 	ROS_INFO("visual_odometry: reset odom to pose %s!", pose.prettyPrint().c_str());
 	odometry_->reset(pose);
+	previousStamp_ = ros::Time();
 	return true;
 }
 

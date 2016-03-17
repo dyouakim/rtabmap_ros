@@ -55,7 +55,7 @@ public:
 		ros::NodeHandle pnh("~");
 
 		ros::NodeHandle nh;
-		mapDataTopic_ = nh.subscribe("mapData", 1, &MapAssembler::mapDataReceivedCallback, this);
+		mapDataTopic_ = nh.subscribe("/mapData_optimized", 1, &MapAssembler::mapDataReceivedCallback, this);
 
 		// private service
 		resetService_ = pnh.advertiseService("reset", &MapAssembler::reset, this);

@@ -65,6 +65,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <image_transport/image_transport.h>
 #include <image_transport/subscriber_filter.h>
 
+#include <tf/transform_datatypes.h>
+
 #ifdef WITH_OCTOMAP
 #include <octomap_msgs/GetOctomap.h>
 #endif
@@ -76,9 +78,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <move_base_msgs/MoveBaseActionFeedback.h>
 #include <actionlib_msgs/GoalStatusArray.h>
 
-#include "landmarks_detection/GetLandmarkPose.h"
 #include <fstream>
-
+#include "landmarks_detection/GetLandmarkPose.h"
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
@@ -188,8 +189,8 @@ private:
 			const rtabmap::SensorData & data,
 			const rtabmap::Transform & odom = rtabmap::Transform(),
 			const std::string & odomFrameId = "",
-			double odomRotationalVariance = 1.0,
-			double odomTransitionalVariance = 1.0);
+			float odomRotationalVariance = 1.0,
+			float odomTransitionalVariance = 1.0);
 
 	bool updateRtabmapCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
 	bool resetRtabmapCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
@@ -239,7 +240,7 @@ private:
 	rtabmap::Transform currentMetricGoal_;
 	bool latestNodeWasReached_;
 	rtabmap::ParametersMap parameters_;
-    int markerCounter;
+
 	std::string frameId_;
 	std::string mapFrameId_;
 	std::string odomFrameId_;
@@ -260,8 +261,7 @@ private:
 	ros::Publisher mapDataPub_;
 	ros::Publisher mapGraphPub_;
 	ros::Publisher labelsPub_;
-    ros::Publisher robotPoseMarkerPub_;
-    ros::Publisher robotPosePub_;
+
 	//Planning stuff
 	ros::Subscriber goalSub_;
 	ros::Subscriber goalNodeSub_;
@@ -269,11 +269,6 @@ private:
 	ros::Publisher goalReachedPub_;
 	ros::Publisher globalPathPub_;
 	ros::Publisher localPathPub_;
-
-	ros::ServiceClient getLandmarkPoseClnt_;
-	landmarks_detection::GetLandmarkPose getlandmarkPoseSrv_;
-
-	std::ofstream dataFile;
 
 	// for loop closure detection only
 	image_transport::Subscriber defaultSub_;
@@ -408,12 +403,13 @@ private:
 
 	MoveBaseClient mbClient_;
 
-
 	boost::thread* transformThread_;
 
 	float rate_;
 	ros::Time time_;
-
+	std::ofstream file;
+	ros::ServiceClient getLandmarkPoseClnt_;
+	landmarks_detection::GetLandmarkPose getlandmarkPoseSrv_;
 };
 
 #endif /* COREWRAPPER_H_ */
